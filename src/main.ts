@@ -16,10 +16,12 @@ import './styles/element-ui.scss'
 
 import components from './components'
 
+import locale from 'element-plus/lib/locale/lang/zh-cn'
+
 const app = createApp(App)
 
 // 使用element-plus
-app.use(ElementPlus)
+app.use(ElementPlus, { locale })
 
 // 使用全局组件
 app.use(components)

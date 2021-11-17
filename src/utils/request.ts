@@ -38,8 +38,31 @@ axios.interceptors.response.use(
   }
 )
 
+// url 动态参数替换
+const replaceUrlDynamicParams = (url = '', params: { [key: string]: any } = {}): [string, { [key: string]: any }] => {
+  const keys = Object.keys(params)
+  let pattern: RegExp | null = null
+  for (const key of keys) {
+    pattern = new RegExp(`:${key}\\b`, 'g')
+    if (pattern.test(url)) {
+      // url 当前有动态参数，使用正则替换
+      url = url.replace(pattern, params[key])
+      delete params[key]
+    }
+  }
+  return [url, params]
+}
+
 const request: Request = {
   request(params) {
+    const [url, _params] = replaceUrlDynamicParams(params.url, params.params)
+    params.url = url
+    params.params = _params
+    if (params.method !== 'GET') {
+      // 只有get的请求参数放在params里面，其他参数放在body里面
+      params.data = params.params
+      delete params.params
+    }
     const { headers = {}, ...args } = params
 
     // if (token.get()) {
@@ -76,7 +99,7 @@ const request: Request = {
         .catch((err: Response) => {
           const { msg } = err
           ElMessage.error(msg)
-          resolve(err)
+          resolve({ code: -1, msg })
         })
     )
   },

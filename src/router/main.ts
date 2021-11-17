@@ -1,5 +1,5 @@
 import { IRouterRecordRow } from './index'
-import { HomeFilled, Setting } from '@element-plus/icons'
+import { HomeFilled, Setting, Grid } from '@element-plus/icons'
 import { RouterView } from 'vue-router'
 
 const mainRoter: Array<IRouterRecordRow> = [
@@ -59,6 +59,14 @@ const mainRoter: Array<IRouterRecordRow> = [
         component: () => import(/* webpackChunkName: "mainHome" */ '@/views/main/home/index.vue')
       }
     ]
+  },
+  {
+    path: '/main/table',
+    icon: Grid,
+    meta: {
+      name: '表格'
+    },
+    component: () => import(/* webpackChunkName: "mainTable" */ '@/views/main/table/index.vue')
   }
 ]
 
