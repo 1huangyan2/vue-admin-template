@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import mainRoter from './main'
+import { emptyPendingRequest } from '@/utils/request'
 
 export type Meta = {
   permissions?: string[]
@@ -61,6 +62,7 @@ router.beforeEach((to, from, next) => {
     documentTitle = to.meta.name + ' - 评价管理系统'
   }
   document.title = documentTitle
+  emptyPendingRequest()
   next()
 })
 

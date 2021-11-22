@@ -2,6 +2,7 @@ import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'
 // import token from '@/localStorage/token';
 import { ElMessage } from 'element-plus'
 import router from '@/router'
+import Qs from 'qs'
 
 const BaseUrl = process.env.VUE_APP_REQUEST_HOST
 
@@ -19,13 +20,71 @@ interface Response<T = any> {
   data?: T
 }
 
+export const pendingRequest = new Map()
+
+// 生成请求key
+function generateReqKey(config: AxiosRequestConfig) {
+  const { method, url, params, data } = config
+  return [method, url, Qs.stringify(params), Qs.stringify(data)].join('&')
+}
+
+// 添加请求到map对象
+function addPendingRequest(config: AxiosRequestConfig) {
+  if (config.url && ['/testing'].includes(config.url)) {
+    // 排除请求api
+    return
+  }
+  const requestKey = generateReqKey(config)
+  config.cancelToken =
+    config.cancelToken ||
+    new axios.CancelToken((cancel) => {
+      if (!pendingRequest.has(requestKey)) {
+        pendingRequest.set(requestKey, cancel)
+      }
+    })
+}
+
+// 从map对象删除请求
+function removePendingRequest(config: AxiosRequestConfig) {
+  const requestKey = generateReqKey(config)
+  if (pendingRequest.has(requestKey)) {
+    const cancelToken = pendingRequest.get(requestKey)
+    cancelToken(requestKey)
+    pendingRequest.delete(requestKey)
+  }
+}
+// 清空请求
+export const emptyPendingRequest = () => {
+  for (const [key, value] of pendingRequest) {
+    value()
+  }
+}
+
+// 添加请求拦截器
+axios.interceptors.request.use(
+  function (config) {
+    removePendingRequest(config) // 检查是否存在重复请求，若存在则取消已发的请求
+    addPendingRequest(config) // 把当前请求信息添加到pendingRequest对象中
+    return config
+  },
+  () => {
+    return Promise.reject({ code: -1, msg: '请求失败了' })
+  }
+)
+
 // 添加响应拦截器
 axios.interceptors.response.use(
   (response) => {
+    removePendingRequest(response.config) // 从pendingRequest对象中移除请求
     // 请求成功
     return response
   },
   (error: AxiosError) => {
+    removePendingRequest(error.config || {}) // 从pendingRequest对象中移除请求
+    if (error instanceof axios.Cancel) {
+      // 请求取消了
+      return Promise.reject({ code: -1, msg: '' })
+    }
     // 请求不成功
     let code = -1
     let msg = '请求失败了'
@@ -72,21 +131,19 @@ const request: Request = {
     return new Promise((resolve) =>
       axios({
         baseURL: BaseUrl + '/api',
-        headers: {
-          ...headers
-        },
+        headers,
         ...args
       })
         .then((res: AxiosResponse<Response>) => {
           const { data } = res
-          // 请求的图片信息成功 后续让后端统一格式返回
-          if (data instanceof ArrayBuffer) {
+          // 接口返回二进制或者字符串 接口请求成功
+          if (data instanceof ArrayBuffer || typeof data === 'string') {
             resolve({ code: 0, msg: 'success', data })
             return
           }
           // 接口返回失败
           if (data.code !== 0) {
-            ElMessage.error(data.msg)
+            ElMessage.error(data.msg || '请求失败')
           }
           resolve(data)
           // token失效，或未登录 需要授权
@@ -98,7 +155,7 @@ const request: Request = {
         })
         .catch((err: Response) => {
           const { msg } = err
-          ElMessage.error(msg)
+          msg && ElMessage.error(msg)
           resolve({ code: -1, msg })
         })
     )
